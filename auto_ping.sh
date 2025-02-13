@@ -105,7 +105,7 @@ fi
 menu_utama() {
     status_dashboard
     while true; do
-        echo "\n=== MENU UTAMA ==="
+        echo "=== MENU UTAMA ==="
         echo "1) Konfigurasi"
         echo "2) Aktifkan Script"
         echo "3) Nonaktifkan Script"
