@@ -3,7 +3,7 @@
 ## 1. Unduh dan Simpan Script
 Unduh script dengan perintah berikut di terminal OpenWRT:
 ```
-wget -O /usr/bin/auto_ping "https://github.com/wachidbos97/openwrt-auto-ping"
+wget -O /usr/bin/auto_ping "https://raw.githubusercontent.com/wachidbos97/openwrt-auto-ping/main/auto_ping.sh"
 chmod +x /usr/bin/auto_ping
 ```
 Gantilah `URL_SCRIPT` dengan tautan unduhan yang sesuai.
