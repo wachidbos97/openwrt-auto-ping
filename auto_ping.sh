@@ -5,7 +5,12 @@ LOG_FILE="/var/log/openwrt_auto_ping.log"
 MAX_LOG_LINES=100
 
 # Pastikan file konfigurasi ada agar tidak kosong saat pertama kali dijalankan
-[ ! -f "$CONFIG_FILE" ] && echo "TARGET_URLS=\nPING_METHOD=\nINTERFACE=\nTUNNEL=\nAUTOBOOT=\nSTATUS=inactive" > "$CONFIG_FILE"
+[ ! -f "$CONFIG_FILE" ] && echo "TARGET_URLS=
+PING_METHOD=
+INTERFACE=
+TUNNEL=
+AUTOBOOT=
+STATUS=inactive" > "$CONFIG_FILE"
 
 # Fungsi untuk menampilkan status konfigurasi di dashboard
 status_dashboard() {
@@ -66,12 +71,15 @@ jalankan_script() {
             loss_count=$((loss_count + 1))
             echo "$TIMESTAMP - Ping gagal ($loss_count/10), cek kembali..." | tee -a "$LOG_FILE"
             if [ "$loss_count" -ge 10 ]; then
-                echo "$TIMESTAMP - Ping gagal 10 kali berturut-turut, restart tunnel..." | tee -a "$LOG_FILE"
-                case $TUNNEL in
-                    "restart passwall") /etc/init.d/passwall restart;;
-                    "restart openclash") /etc/init.d/openclash restart;;
-                    "restart mihomo") /etc/init.d/mihomo restart;;
-                esac
+                echo "$TIMESTAMP - Ping gagal 10 kali berturut-turut..." | tee -a "$LOG_FILE"
+                if [ "$TUNNEL" != "tanpa restart" ]; then
+                    echo "$TIMESTAMP - Restarting tunnel: $TUNNEL..." | tee -a "$LOG_FILE"
+                    case $TUNNEL in
+                        "restart passwall") /etc/init.d/passwall restart;;
+                        "restart openclash") /etc/init.d/openclash restart;;
+                        "restart mihomo") /etc/init.d/mihomo restart;;
+                    esac
+                fi
                 loss_count=0
                 continue
             fi
