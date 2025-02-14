@@ -73,18 +73,34 @@ konfigurasi_wizard() {
     echo "STATUS=inactive" >> "$CONFIG_FILE"
 }
 
-# Fungsi untuk memastikan script tetap berjalan setelah keluar
+# Fungsi untuk menjalankan auto ping secara berulang
+jalankan_auto_ping() {
+    source "$CONFIG_FILE"
+    echo "Auto Ping dimulai... (Tekan CTRL+C untuk berhenti)"
+    while true; do
+        for URL in $TARGET_URLS; do
+            if ! $PING_METHOD $URL > /dev/null; then
+                echo "Ping ke $URL gagal"
+            else
+                echo "Ping ke $URL sukses"
+            fi
+        done
+        sleep 10
+    done
+}
+
+# Fungsi untuk menjalankan script secara otomatis di latar belakang
 jalankan_background() {
-    nohup bash -c 'while true; do jalankan_script; sleep 10; done' &> /dev/null &
+    nohup bash -c 'while true; do jalankan_auto_ping; sleep 10; done' &> /dev/null &
     echo "Script tetap berjalan di latar belakang."
 }
 
-# Fungsi untuk menjalankan ping dan restart tunnel jika semua URL gagal
+# Fungsi untuk menjalankan script
 jalankan_script() {
     source "$CONFIG_FILE"
     STATUS="active"
     echo "STATUS=$STATUS" > "$CONFIG_FILE"
-    echo "Script berhasil dijalankan!"  # Menampilkan pesan sukses
+    echo "Script berhasil dijalankan dan akan berjalan terus!"  # Menampilkan pesan sukses
     sleep 2  # Menunggu sebentar sebelum kembali ke menu
     jalankan_background  # Pastikan script tetap berjalan di latar belakang
     menu_utama  # Kembali ke menu utama setelah menjalankan script
@@ -110,7 +126,7 @@ menu_utama() {
         case $choice in
             1) konfigurasi_wizard;;
             2) cek_konfigurasi; jalankan_script;;
-            3) echo "STATUS=inactive" > "$CONFIG_FILE"; echo "Script dinonaktifkan.";;
+            3) echo "STATUS=inactive" > "$CONFIG_FILE"; echo "Script dihentikan.";;
             4) echo "Tekan ENTER untuk keluar dari log."; tail -f "$LOG_FILE" & read -r; kill $!;;
             5) exit;;
             *) echo "Pilihan tidak valid";;
