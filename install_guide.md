@@ -17,6 +17,15 @@ Setelah instalasi selesai, jalankan script dengan:
 auto-ping
 ```
 
+## Menyesuaikan Path dalam Script
+Agar semua script saling terhubung setelah berpindah ke `/usr/bin/autoping/`, pastikan setiap file `.sh` di dalam folder tersebut menggunakan path absolut saat **source**:
+```sh
+source /usr/bin/autoping/config.sh
+source /usr/bin/autoping/log.sh
+source /usr/bin/autoping/auto_ping.sh
+source /usr/bin/autoping/menu.sh
+```
+
 ## Fitur
 - **Ping otomatis** ke URL yang telah dikonfigurasi.
 - **Restart tunnel otomatis** jika ping gagal sesuai batas yang ditentukan.
