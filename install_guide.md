@@ -6,7 +6,7 @@ Gunakan perintah berikut untuk memastikan semua paket yang dibutuhkan terinstal,
 opkg update && opkg install curl adb grep sed coreutils
 mkdir -p /usr/bin/autoping
 for file in auto_ping_main.sh config.sh log.sh auto_ping.sh menu.sh; do
-    wget -O /usr/bin/autoping/$file "https://raw.githubusercontent.com/username/openwrt-auto-ping/main/$file"
+    wget -O /usr/bin/autoping/$file "https://raw.githubusercontent.com/wachidbos97/openwrt-auto-ping/main/$file"
     chmod +x /usr/bin/autoping/$file
 done
 ln -sf /usr/bin/autoping/auto_ping_main.sh /usr/bin/auto-ping
