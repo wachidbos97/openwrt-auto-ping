@@ -1,14 +1,15 @@
 # Panduan Instalasi Auto Ping untuk OpenWRT
 
 ## Cara Instalasi (Satu Perintah)
-Gunakan perintah berikut untuk memastikan semua paket yang dibutuhkan terinstal, mengunduh script, mengganti file lama, dan memberikan izin eksekusi:
+Gunakan perintah berikut untuk memastikan semua paket yang dibutuhkan terinstal, membuat folder instalasi, mengunduh script, mengganti file lama, dan memberikan izin eksekusi:
 ```sh
 opkg update && opkg install curl adb grep sed coreutils
+mkdir -p /usr/bin/autoping
 for file in auto_ping_main.sh config.sh log.sh auto_ping.sh menu.sh; do
-    wget -O /usr/bin/$file "https://raw.githubusercontent.com/username/openwrt-auto-ping/main/$file"
-    chmod +x /usr/bin/$file
+    wget -O /usr/bin/autoping/$file "https://raw.githubusercontent.com/username/openwrt-auto-ping/main/$file"
+    chmod +x /usr/bin/autoping/$file
 done
-ln -sf /usr/bin/auto_ping_main.sh /usr/bin/auto-ping
+ln -sf /usr/bin/autoping/auto_ping_main.sh /usr/bin/auto-ping
 ```
 
 Setelah instalasi selesai, jalankan script dengan:
@@ -39,7 +40,7 @@ auto-ping
 ## Troubleshooting
 - Jika skrip tidak berjalan, pastikan sudah diberi izin eksekusi:
   ```sh
-  chmod +x /usr/bin/auto_ping_main.sh
+  chmod +x /usr/bin/autoping/auto_ping_main.sh
   ```
 
 Skrip sekarang siap digunakan! 🚀
