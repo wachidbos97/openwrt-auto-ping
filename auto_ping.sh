@@ -17,26 +17,12 @@ dependency_check() {
 dependency_check
 
 # Pastikan file konfigurasi ada agar tidak kosong saat pertama kali dijalankan
-[ ! -f "$CONFIG_FILE" ] && cat <<EOL > "$CONFIG_FILE"
-TARGET_URLS=
+[ ! -f "$CONFIG_FILE" ] && echo "TARGET_URLS=
 PING_METHOD=
 INTERFACE=
 TUNNEL=
 AUTOBOOT=
-STATUS=inactive
-EOL
-
-# Fungsi untuk menyimpan konfigurasi
-simpan_konfigurasi() {
-    cat <<EOL > "$CONFIG_FILE"
-TARGET_URLS=${TARGET_URLS[*]}
-PING_METHOD=$PING_METHOD
-INTERFACE=$INTERFACE
-TUNNEL=$TUNNEL
-AUTOBOOT=$AUTOBOOT
-STATUS=$STATUS
-EOL
-}
+STATUS=inactive" > "$CONFIG_FILE"
 
 # Fungsi untuk menampilkan status konfigurasi di dashboard
 status_dashboard() {
@@ -52,7 +38,7 @@ status_dashboard() {
     echo "================================"
 }
 
-# Fungsi untuk menjalankan wizard konfigurasi jika belum dikonfigurasi
+# Fungsi untuk menjalankan wizard konfigurasi hanya jika belum dikonfigurasi
 cek_konfigurasi() {
     source "$CONFIG_FILE"
     if [ -z "$TARGET_URLS" ] || [ -z "$PING_METHOD" ] || [ -z "$INTERFACE" ] || [ -z "$TUNNEL" ] || [ -z "$AUTOBOOT" ]; then
@@ -61,7 +47,33 @@ cek_konfigurasi() {
     fi
 }
 
-# Fungsi untuk menjalankan auto ping secara berulang dengan barometer 100% packet loss
+# Fungsi untuk menjalankan wizard konfigurasi
+konfigurasi_wizard() {
+    echo "Masukkan URL target ping (pisahkan dengan spasi jika lebih dari satu):"; read -a TARGET_URLS
+    echo "Pilih metode ping: (1) ping -c4 (2) adb shell ping -c4"
+    read PING_CHOICE
+    [ "$PING_CHOICE" == "1" ] && PING_METHOD="ping -c4"
+    [ "$PING_CHOICE" == "2" ] && PING_METHOD="adb shell ping -c4"
+    
+    echo "Pilih interface (eth1, usb0, wwan0):"; read INTERFACE
+    echo "Pilih tunnel restart (1) passwall (2) openclash (3) mihomo (4) tanpa restart"
+    read TUNNEL_CHOICE
+    case $TUNNEL_CHOICE in
+        1) TUNNEL="restart passwall";;
+        2) TUNNEL="restart openclash";;
+        3) TUNNEL="restart mihomo";;
+        4) TUNNEL="tanpa restart";;
+    esac
+    echo "Auto boot saat OpenWRT menyala? (yes/no):"; read AUTOBOOT
+    echo "TARGET_URLS=${TARGET_URLS[*]}" > "$CONFIG_FILE"
+    echo "PING_METHOD=$PING_METHOD" >> "$CONFIG_FILE"
+    echo "INTERFACE=$INTERFACE" >> "$CONFIG_FILE"
+    echo "TUNNEL=$TUNNEL" >> "$CONFIG_FILE"
+    echo "AUTOBOOT=$AUTOBOOT" >> "$CONFIG_FILE"
+    echo "STATUS=inactive" >> "$CONFIG_FILE"
+}
+
+# Fungsi untuk menjalankan auto ping secara berulang
 jalankan_auto_ping() {
     source "$CONFIG_FILE"
     local loss_count=0
@@ -69,41 +81,43 @@ jalankan_auto_ping() {
     while true; do
         local all_failed=true
         for URL in $TARGET_URLS; do
-            if $PING_METHOD $URL | grep -q '100% packet loss'; then
+            if eval "$PING_METHOD $URL" | grep -q '100% packet loss'; then
                 echo "Ping ke $URL gagal (100% packet loss)"
+                loss_count=$((loss_count + 1))
             else
                 echo "Ping ke $URL sukses"
                 all_failed=false
-            fi
-        done
-        if $all_failed; then
-            loss_count=$((loss_count + 1))
-            echo "Auto Ping gagal $loss_count kali berturut-turut."
-            if [ "$loss_count" -ge 10 ] && [ "$TUNNEL" != "tanpa restart" ]; then
-                echo "Restarting tunnel: $TUNNEL..."
-                case $TUNNEL in
-                    "restart passwall") /etc/init.d/passwall restart;;
-                    "restart openclash") /etc/init.d/openclash restart;;
-                    "restart mihomo") /etc/init.d/mihomo restart;;
-                esac
                 loss_count=0
             fi
-        else
+        done
+        if [ "$loss_count" -ge 10 ] && [ "$TUNNEL" != "tanpa restart" ]; then
+            echo "Restarting tunnel: $TUNNEL..."
+            case $TUNNEL in
+                "restart passwall") /etc/init.d/passwall restart;;
+                "restart openclash") /etc/init.d/openclash restart;;
+                "restart mihomo") /etc/init.d/mihomo restart;;
+            esac
             loss_count=0
-            echo "Ping berhasil, mengulangi auto ping dari awal."
         fi
         sleep 3
     done
+}
+
+# Fungsi untuk menjalankan script secara otomatis di latar belakang
+jalankan_background() {
+    nohup bash -c 'while true; do jalankan_auto_ping; done' &> /dev/null &
+    echo "Script tetap berjalan di latar belakang."
 }
 
 # Fungsi untuk menjalankan script
 jalankan_script() {
     source "$CONFIG_FILE"
     STATUS="active"
-    simpan_konfigurasi
+    echo "STATUS=$STATUS" > "$CONFIG_FILE"
     echo "Script berhasil dijalankan dan akan berjalan terus!"  # Menampilkan pesan sukses
     sleep 2  # Menunggu sebentar sebelum kembali ke menu
-    jalankan_auto_ping  # Jalankan auto ping langsung
+    jalankan_background  # Pastikan script tetap berjalan di latar belakang
+    menu_utama  # Kembali ke menu utama setelah menjalankan script
 }
 
 # Fungsi untuk menampilkan menu utama
@@ -121,7 +135,7 @@ menu_utama() {
         case $choice in
             1) konfigurasi_wizard;;
             2) cek_konfigurasi; jalankan_script;;
-            3) echo "STATUS=inactive" > "$CONFIG_FILE"; simpan_konfigurasi; echo "Script dihentikan.";;
+            3) echo "STATUS=inactive" > "$CONFIG_FILE"; echo "Script dihentikan.";;
             4) echo "Tekan ENTER untuk keluar dari log."; tail -f "$LOG_FILE" & read -r; kill $!;;
             5) exit;;
             *) echo "Pilihan tidak valid";;
