@@ -38,12 +38,14 @@ status_dashboard() {
     echo "================================"
 }
 
-# Fungsi untuk menjalankan wizard konfigurasi hanya jika belum dikonfigurasi
-cek_konfigurasi() {
-    source "$CONFIG_FILE"
-    if [ -z "$TARGET_URLS" ] || [ -z "$PING_METHOD" ] || [ -z "$INTERFACE" ] || [ -z "$TUNNEL" ] || [ -z "$AUTOBOOT" ]; then
-        echo "Konfigurasi belum lengkap, harap isi wizard konfigurasi."
-        konfigurasi_wizard
+# Fungsi untuk mencatat log real-time
+tulis_log() {
+    local pesan="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "$timestamp - $pesan" | tee -a "$LOG_FILE"
+    # Hapus log jika lebih dari MAX_LOG_LINES
+    if [ $(wc -l < "$LOG_FILE") -gt $MAX_LOG_LINES ]; then
+        tail -n $MAX_LOG_LINES "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
     fi
 }
 
@@ -76,37 +78,23 @@ konfigurasi_wizard() {
 # Fungsi untuk menjalankan auto ping secara berulang
 jalankan_auto_ping() {
     source "$CONFIG_FILE"
-    local loss_count=0
     echo "Auto Ping dimulai... (Tekan CTRL+C untuk berhenti)"
     while true; do
-        local all_failed=true
         for URL in $TARGET_URLS; do
-            if eval "$PING_METHOD $URL" | grep -q '100% packet loss'; then
-                echo "Ping ke $URL gagal (100% packet loss)"
-                loss_count=$((loss_count + 1))
+            if ! $PING_METHOD $URL > /dev/null; then
+                tulis_log "Ping ke $URL gagal"
             else
-                echo "Ping ke $URL sukses"
-                all_failed=false
-                loss_count=0
+                tulis_log "Ping ke $URL sukses"
             fi
         done
-        if [ "$loss_count" -ge 10 ] && [ "$TUNNEL" != "tanpa restart" ]; then
-            echo "Restarting tunnel: $TUNNEL..."
-            case $TUNNEL in
-                "restart passwall") /etc/init.d/passwall restart;;
-                "restart openclash") /etc/init.d/openclash restart;;
-                "restart mihomo") /etc/init.d/mihomo restart;;
-            esac
-            loss_count=0
-        fi
-        sleep 3
+        sleep 10
     done
 }
 
 # Fungsi untuk menjalankan script secara otomatis di latar belakang
 jalankan_background() {
-    nohup bash -c 'while true; do jalankan_auto_ping; done' &> /dev/null &
-    echo "Script tetap berjalan di latar belakang."
+    nohup bash -c 'while true; do jalankan_auto_ping; sleep 10; done' &> /dev/null &
+    tulis_log "Script tetap berjalan di latar belakang."
 }
 
 # Fungsi untuk menjalankan script
@@ -114,11 +102,16 @@ jalankan_script() {
     source "$CONFIG_FILE"
     STATUS="active"
     echo "STATUS=$STATUS" > "$CONFIG_FILE"
-    echo "Script berhasil dijalankan dan akan berjalan terus!"  # Menampilkan pesan sukses
+    tulis_log "Script berhasil dijalankan dan akan berjalan terus!"
     sleep 2  # Menunggu sebentar sebelum kembali ke menu
     jalankan_background  # Pastikan script tetap berjalan di latar belakang
     menu_utama  # Kembali ke menu utama setelah menjalankan script
 }
+
+# Pastikan script berjalan otomatis saat booting
+if ! grep -q "auto_ping &" /etc/rc.local; then
+    sed -i -e '$i \nauto_ping &\n' /etc/rc.local
+fi
 
 # Fungsi untuk menampilkan menu utama
 menu_utama() {
@@ -135,7 +128,7 @@ menu_utama() {
         case $choice in
             1) konfigurasi_wizard;;
             2) cek_konfigurasi; jalankan_script;;
-            3) echo "STATUS=inactive" > "$CONFIG_FILE"; echo "Script dihentikan.";;
+            3) echo "STATUS=inactive" > "$CONFIG_FILE"; tulis_log "Script dihentikan.";;
             4) echo "Tekan ENTER untuk keluar dari log."; tail -f "$LOG_FILE" & read -r; kill $!;;
             5) exit;;
             *) echo "Pilihan tidak valid";;
