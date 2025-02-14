@@ -4,6 +4,18 @@ CONFIG_FILE="/etc/openwrt_auto_ping.conf"
 LOG_FILE="/var/log/openwrt_auto_ping.log"
 MAX_LOG_LINES=100
 
+# Periksa dan instal program pendukung jika belum ada
+dependency_check() {
+    for pkg in curl adb grep sed; do
+        if ! command -v $pkg &> /dev/null; then
+            echo "Paket $pkg tidak ditemukan, mencoba menginstalnya..."
+            opkg update && opkg install $pkg
+        fi
+    done
+}
+
+dependency_check
+
 # Pastikan file konfigurasi ada agar tidak kosong saat pertama kali dijalankan
 [ ! -f "$CONFIG_FILE" ] && echo "TARGET_URLS=
 PING_METHOD=
@@ -15,15 +27,24 @@ STATUS=inactive" > "$CONFIG_FILE"
 # Fungsi untuk menampilkan status konfigurasi di dashboard
 status_dashboard() {
     clear
-    echo "=== DASHBOARD KONFIGURASI ==="
     source "$CONFIG_FILE"
-    echo "1) URL Target Ping: $TARGET_URLS"
-    echo "2) Metode Ping: $PING_METHOD"
-    echo "3) Target Interface: $INTERFACE"
-    echo "4) Target Tunnel: $TUNNEL"
-    echo "5) Auto Boot: $AUTOBOOT"
-    echo "6) Status Script: $STATUS"
+    echo "=== DASHBOARD KONFIGURASI ==="
+    echo "1) URL Target Ping: ${TARGET_URLS:-Belum dikonfigurasi}"
+    echo "2) Metode Ping: ${PING_METHOD:-Belum dikonfigurasi}"
+    echo "3) Target Interface: ${INTERFACE:-Belum dikonfigurasi}"
+    echo "4) Target Tunnel: ${TUNNEL:-Belum dikonfigurasi}"
+    echo "5) Auto Boot: ${AUTOBOOT:-Belum dikonfigurasi}"
+    echo "6) Status Script: ${STATUS:-inactive}"
     echo "================================"
+}
+
+# Fungsi untuk menjalankan wizard konfigurasi hanya jika belum dikonfigurasi
+cek_konfigurasi() {
+    source "$CONFIG_FILE"
+    if [ -z "$TARGET_URLS" ] || [ -z "$PING_METHOD" ] || [ -z "$INTERFACE" ] || [ -z "$TUNNEL" ] || [ -z "$AUTOBOOT" ]; then
+        echo "Konfigurasi belum lengkap, harap isi wizard konfigurasi."
+        konfigurasi_wizard
+    fi
 }
 
 # Fungsi untuk menjalankan wizard konfigurasi
@@ -52,48 +73,21 @@ konfigurasi_wizard() {
     echo "STATUS=inactive" >> "$CONFIG_FILE"
 }
 
+# Fungsi untuk memastikan script tetap berjalan setelah keluar
+jalankan_background() {
+    nohup bash -c 'while true; do jalankan_script; sleep 10; done' &> /dev/null &
+    echo "Script tetap berjalan di latar belakang."
+}
+
 # Fungsi untuk menjalankan ping dan restart tunnel jika semua URL gagal
 jalankan_script() {
     source "$CONFIG_FILE"
     STATUS="active"
     echo "STATUS=$STATUS" > "$CONFIG_FILE"
-    local loss_count=0
-    while true; do
-        local all_failed=true
-        for URL in $TARGET_URLS; do
-            if $PING_METHOD $URL > /dev/null; then
-                all_failed=false
-                break
-            fi
-        done
-        TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-        if $all_failed; then
-            loss_count=$((loss_count + 1))
-            echo "$TIMESTAMP - Ping gagal ($loss_count/10), cek kembali..." | tee -a "$LOG_FILE"
-            if [ "$loss_count" -ge 10 ]; then
-                echo "$TIMESTAMP - Ping gagal 10 kali berturut-turut..." | tee -a "$LOG_FILE"
-                if [ "$TUNNEL" != "tanpa restart" ]; then
-                    echo "$TIMESTAMP - Restarting tunnel: $TUNNEL..." | tee -a "$LOG_FILE"
-                    case $TUNNEL in
-                        "restart passwall") /etc/init.d/passwall restart;;
-                        "restart openclash") /etc/init.d/openclash restart;;
-                        "restart mihomo") /etc/init.d/mihomo restart;;
-                    esac
-                fi
-                loss_count=0
-                continue
-            fi
-        else
-            echo "$TIMESTAMP - Ping sukses ke salah satu target, lanjut cek..." | tee -a "$LOG_FILE"
-            loss_count=0
-        fi
-        sleep 10
-
-        # Hapus log jika lebih dari 100 baris
-        if [ $(wc -l < "$LOG_FILE") -gt $MAX_LOG_LINES ]; then
-            tail -n $MAX_LOG_LINES "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
-        fi
-    done
+    echo "Script berhasil dijalankan!"  # Menampilkan pesan sukses
+    sleep 2  # Menunggu sebentar sebelum kembali ke menu
+    jalankan_background  # Pastikan script tetap berjalan di latar belakang
+    menu_utama  # Kembali ke menu utama setelah menjalankan script
 }
 
 # Pastikan script berjalan otomatis saat booting
@@ -115,7 +109,7 @@ menu_utama() {
         read -p "Pilih opsi: " choice
         case $choice in
             1) konfigurasi_wizard;;
-            2) jalankan_script;;
+            2) cek_konfigurasi; jalankan_script;;
             3) echo "STATUS=inactive" > "$CONFIG_FILE"; echo "Script dinonaktifkan.";;
             4) echo "Tekan ENTER untuk keluar dari log."; tail -f "$LOG_FILE" & read -r; kill $!;;
             5) exit;;
