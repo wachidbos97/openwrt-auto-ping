@@ -75,14 +75,14 @@ konfigurasi_wizard() {
     echo "STATUS=inactive" >> "$CONFIG_FILE"
 }
 
-# Fungsi untuk menjalankan auto ping secara berulang
+# Fungsi untuk menjalankan auto ping secara berulang dan mencatat log
 jalankan_auto_ping() {
     source "$CONFIG_FILE"
     echo "Auto Ping dimulai... (Tekan CTRL+C untuk berhenti)"
     while true; do
         for URL in $TARGET_URLS; do
-            if ! $PING_METHOD $URL > /dev/null; then
-                tulis_log "Ping ke $URL gagal"
+            if eval "$PING_METHOD $URL" | tee -a "$LOG_FILE" | grep -q '100% packet loss'; then
+                tulis_log "Ping ke $URL gagal (100% packet loss)"
             else
                 tulis_log "Ping ke $URL sukses"
             fi
@@ -93,7 +93,7 @@ jalankan_auto_ping() {
 
 # Fungsi untuk menjalankan script secara otomatis di latar belakang
 jalankan_background() {
-    nohup bash -c 'while true; do jalankan_auto_ping; sleep 10; done' &> /dev/null &
+    nohup bash -c 'while true; do jalankan_auto_ping; sleep 10; done' >> "$LOG_FILE" 2>&1 &
     tulis_log "Script tetap berjalan di latar belakang."
 }
 
